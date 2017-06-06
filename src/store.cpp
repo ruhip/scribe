@@ -522,9 +522,17 @@ int FileStoreBase::getFileSuffix(const string& filename,
   string::size_type suffix_pos = filename.rfind('_');
   string::size_type suffix_pos2 = base_filename.rfind('/');
 
-  bool retVal = true;//(0 == filename.substr(0, suffix_pos).compare(base_filename.substr(0,suffix_pos2)));
+  bool retVal = false;
+  if (suffix_pos2 != string::npos)
+  {
+      retVal = (0 == filename.substr(0, suffix_pos).compare(base_filename.substr(suffix_pos2 + 1, base_filename.length() - 1)));
+  }
+  else
+  {
+      retVal = (0 == filename.substr(0, suffix_pos).compare(base_filename));
+  }
   //bool retVal = (0 == filename.substr(0, suffix_pos).compare(base_filename));
-
+  //retVal =  true;
   if (string::npos != suffix_pos &&
       filename.length() > suffix_pos &&
       retVal) {
