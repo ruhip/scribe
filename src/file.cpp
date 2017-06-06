@@ -268,7 +268,8 @@ void StdFile::deleteFile() {
 
 bool StdFile::createDirectory(std::string path) {
   try {
-    boost::filesystem::create_directories(path);
+LOG_OPER("in StdFile::createDirectory path:%s.", path.c_str());  
+  boost::filesystem::create_directories(path);
   } catch(const std::exception& e) {
     LOG_OPER("Exception < %s > in StdFile::createDirectory for path %s ",
       e.what(),path.c_str());

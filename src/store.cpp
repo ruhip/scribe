@@ -209,6 +209,7 @@ FileStoreBase::~FileStoreBase() {
 
 void FileStoreBase::configure(pStoreConf configuration, pStoreConf parent) {
   Store::configure(configuration, parent);
+//  printf("froad:in configure\n");
 
   // We can run using defaults for all of these, but there are
   // a couple of suspicious things we warn about.
@@ -313,6 +314,7 @@ void FileStoreBase::configure(pStoreConf configuration, pStoreConf parent) {
   if(0 == maxSize) {
     maxSize = ULONG_MAX;
   }
+  //LOG_OPER("froad:maxSize %lu", maxSize);
   configuration->getUnsigned("max_write_size", maxWriteSize);
   configuration->getUnsigned("rotate_hour", rollHour);
   configuration->getUnsigned("rotate_minute", rollMinute);
@@ -371,6 +373,7 @@ void FileStoreBase::periodicCheck() {
 
   // Roll the file if we're over max size, or an hour or day has passed
   bool rotate = ((currentSize > maxSize) && (maxSize != 0));
+  //LOG_OPER("froad:in periodicCheck rotate:%d",rotate);
   if (!rotate) {
     switch (rollPeriod) {
       case ROLL_DAILY:
@@ -397,6 +400,7 @@ void FileStoreBase::periodicCheck() {
 
 void FileStoreBase::rotateFile(time_t currentTime) {
   struct tm timeinfo;
+  //LOG_OPER("froad:in rotateFile");
 
   currentTime = currentTime > 0 ? currentTime : time(NULL);
   localtime_r(&currentTime, &timeinfo);
@@ -418,9 +422,18 @@ string FileStoreBase::makeFullFilename(int suffix, struct tm* creation_time,
   if (use_full_path) {
     filename << filePath << '/';
   }
-  filename << makeBaseFilename(creation_time);
+  
+  string strbasefile = makeBaseFilename(creation_time);
+  //LOG_OPER("in makeFullFilename strbasefile1:%s",strbasefile.c_str());
+  if( strbasefile.find_last_of('/') != string::npos )
+  {
+      strbasefile = strbasefile.substr(strbasefile.find_last_of('/')+1,strbasefile.length());
+  }
+  //LOG_OPER("in makeFullFilename strbasefile2:%s",strbasefile.c_str());
+  //filename << makeBaseFilename(creation_time);
+  filename << strbasefile;
   filename << '_' << setw(5) << setfill('0') << suffix;
-
+//LOG_OPER("in makeFullFilename filePath:%s,filename:%s",filePath.c_str(),filename.str().c_str());
   return filename.str();
 }
 
@@ -429,7 +442,13 @@ string FileStoreBase::makeBaseSymlink() {
   if (!baseSymlinkName.empty()) {
     base << baseSymlinkName << "_current";
   } else {
-    base << baseFileName << "_current";
+    string strSubFile = baseFileName;
+    if( baseFileName.find_last_of('/') != string::npos )
+    {
+        strSubFile = baseFileName.substr(baseFileName.find_last_of('/')+1,baseFileName.length());
+    }
+    base << strSubFile << "_current";
+    //base << baseFileName << "_current";
   }
   return base.str();
 }
@@ -437,6 +456,7 @@ string FileStoreBase::makeBaseSymlink() {
 string FileStoreBase::makeFullSymlink() {
   ostringstream filename;
   filename << filePath << '/' << makeBaseSymlink();
+  LOG_OPER("in makeFullSymlink filename:%s",filename.str().c_str());
   return filename.str();
 }
 
@@ -448,8 +468,12 @@ string FileStoreBase::makeBaseFilename(struct tm* creation_time) {
     filename << '-' << creation_time->tm_year + 1900  << '-'
              << setw(2) << setfill('0') << creation_time->tm_mon + 1 << '-'
              << setw(2) << setfill('0')  << creation_time->tm_mday;
+             //<< setw(2) << setfill('0')  << creation_time->tm_hour
+             //<< setw(2) << setfill('0')  << creation_time->tm_min
+             //<< setw(2) << setfill('0')  << creation_time->tm_sec;
 
   }
+ // LOG_OPER("in makeBaseFilename baseFileName:%s,filename:%s",baseFileName.c_str(),filename.str().c_str());
   return filename.str();
 }
 
@@ -463,6 +487,7 @@ int FileStoreBase::findNewestFile(const string& base_filename) {
   for (std::vector<std::string>::iterator iter = files.begin();
        iter != files.end();
        ++iter) {
+    //LOG_OPER("froad:in findNewestFile base_filename:%s,filename:%s",base_filename.c_str(),(*iter).c_str());
 
     int suffix = getFileSuffix(*iter, base_filename);
     if (suffix > max_suffix) {
@@ -495,8 +520,10 @@ int FileStoreBase::getFileSuffix(const string& filename,
                                 const string& base_filename) {
   int suffix = -1;
   string::size_type suffix_pos = filename.rfind('_');
+  string::size_type suffix_pos2 = base_filename.rfind('/');
 
-  bool retVal = (0 == filename.substr(0, suffix_pos).compare(base_filename));
+  bool retVal = true;//(0 == filename.substr(0, suffix_pos).compare(base_filename.substr(0,suffix_pos2)));
+  //bool retVal = (0 == filename.substr(0, suffix_pos).compare(base_filename));
 
   if (string::npos != suffix_pos &&
       filename.length() > suffix_pos &&
@@ -644,11 +671,11 @@ bool FileStore::openInternal(bool incrementFilename, struct tm* current_time) {
 
   try {
     int suffix = findNewestFile(makeBaseFilename(current_time));
-
+    //LOG_OPER("froad:suffix1:%d",suffix);
     if (incrementFilename) {
       ++suffix;
     }
-
+    //LOG_OPER("froad:suffix2:%d",suffix);
     // this is the case where there's no file there and we're not incrementing
     if (suffix < 0) {
       if (rollPeriod == ROLL_HOURLY) {
@@ -692,9 +719,17 @@ bool FileStore::openInternal(bool incrementFilename, struct tm* current_time) {
       setStatus("file open error");
       return false;
     }
-
+/*
+    string strSubDir = "";
+    int nFind = categoryHandled.find_last_of('/');
+    if( nFind != string::npos )
+    {
+        strSubDir = "/" + categoryHandled.substr(0,nFind);
+    }
+*/ 
+//LOG_OPER("strSubDir:%s",strSubDir.c_str());
     success = writeFile->createDirectory(baseFilePath);
-
+//LOG_OPER("in openInternal,baseFilePath:%s,filePath:%s",baseFilePath.c_str(),filePath.c_str());
     // If we created a subdirectory, we need to create two directories
     if (success && !subDirectory.empty()) {
       success = writeFile->createDirectory(filePath);
@@ -1100,6 +1135,7 @@ bool ThriftFileStore::handleMessages(boost::shared_ptr<logentry_vector_t> messag
       return false;
     }
   }
+  //LOG_OPER("froad:handleMessages currentSize:%d,maxSize:%d",currentSize,maxSize);
   // We can't wait until periodicCheck because we could be getting
   // a lot of data all at once in a failover situation
   if (currentSize > maxSize && maxSize != 0) {
